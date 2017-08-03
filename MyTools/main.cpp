@@ -1,6 +1,12 @@
 #include <stdio.h>
 #include "./utils.h"
 
+#ifdef _WIN64
+#pragma comment(lib,"./thirdpart/uchardet/uCharDetDll_64.lib")
+#else
+#pragma comment(lib,"./thirdpart/uchardet/uCharDetDll_32.lib")
+#endif
+
 void main()
 {
 	if(tryFirstRunModule())

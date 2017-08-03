@@ -21,3 +21,7 @@ public:
 
 	int getCharSetPageCode(const char *buf,size_t bufLen);
 };
+
+
+//多字节转为宽字节. char -> Unicode
+wchar_t* multCharSetToWide(const char * buf,size_t bufLen,size_t *realNumLen);

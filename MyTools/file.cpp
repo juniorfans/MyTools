@@ -3,6 +3,8 @@
 #include <assert.h>
 #include <direct.h>
 #include <windows.h>
+#include "string.h"
+#include <io.h>
 
 
 void intsToFile(int *ints,size_t len,const string &fileName)
@@ -244,6 +246,29 @@ string formatPath(const string& path)
 	return string(tmp);
 }
 
+string formatInWindowsPath(const string& path)
+{
+	char tmp[MAX_PATH];
+
+	int len = path.length();
+
+	if (0 == len) {
+		return "";
+	}
+
+
+	memset(tmp, '\0', sizeof(tmp));
+	memcpy_s(tmp,len,path.c_str(),len);
+
+	for (int i = 0;i < len;++ i)
+	{
+		if(tmp[i] == '/')
+			tmp[i] = '\\';
+	}
+
+	return string(tmp);
+}
+
 
 bool isDirectory(const string& path)
 {
@@ -374,3 +399,48 @@ bool getParentDir(const string& thePath,string &dir)
 	}
 }
 
+//读取文件多字节流
+const char* NEED_DELETE readFileBytes(const char*fileName,size_t &length)
+{
+	ifstream file(fileName);
+	if(!file)
+	{
+		length = 0;
+		return NULL;
+	}
+	file.seekg(0,std::ios::end);
+	length = file.tellg();
+	file.seekg(0,std::ios::beg);
+	char *ret = new char[length];
+	file.read(ret,length);
+	file.close();
+	return ret;
+}
+
+
+void listFiles(const string &dir, vector<string>& filePaths )
+{
+	intptr_t handle;
+	_finddata_t findData;
+
+	handle = _findfirst((dir+"\\*.*").c_str(), &findData);
+	if (handle == -1)        // 检查是否成功
+		return;
+
+	do
+	{
+		if (findData.attrib & _A_SUBDIR)
+		{
+			if (strcmp(findData.name, ".") == 0 || strcmp(findData.name, "..") == 0)
+				continue;
+
+			listFiles(dir+"\\"+findData.name,filePaths);
+		}
+		else
+		{
+			filePaths.push_back(dir + "\\" + findData.name);
+		}
+	} while (_findnext(handle, &findData) == 0);
+
+	_findclose(handle);    // 关闭搜索句柄
+}

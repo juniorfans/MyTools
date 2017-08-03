@@ -13,11 +13,16 @@ using std::ios_base;
 using std::ios;
 #include <windows.h>
 #include <stdlib.h>
+#include <vector>
+using std::vector;
 
 #define NEED_DELETE 
 
 //将路径中的反斜杠替换为斜杠. \\ -> /
 string formatPath(const string& path);
+
+//将路径中的斜杠替换为反斜杠. / --> \\ 
+string formatInWindowsPath(const string& path);
 
 //复制文件
 int copyFile(const string& source,const string& target);
@@ -66,6 +71,9 @@ const char* NEED_DELETE getCurrentModulePathWithSlash();
 //文件是否存在. 0:不存在, 1:存在
 int fileExists(const char* filename);
 
+//读取文件多字节流
+const char* NEED_DELETE readFileBytes(const char*fileName,size_t &length);
 
+void listFiles(const string &dir, vector<string>& filePaths );
 
 #endif

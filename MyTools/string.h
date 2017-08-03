@@ -3,6 +3,9 @@
 #include <string>
 using std::string;
 #include "kmp.h"
+#include "encoding.h"
+#include "math.h"
+#include  "pthread.h"
 
 //字符串长度
 template<typename CHAR_TYPE>
@@ -38,9 +41,6 @@ char simpleGetTextEncoding(const char* buf,size_t bufLen,size_t *realNumLen);
 //字符串相等
 template<typename CHAR_TYPE>
 bool strEqual(const CHAR_TYPE *l,const CHAR_TYPE *r);
-
-//多字节转为宽字节. char -> Unicode
-wchar_t* multCharSetToWide(const char * buf,size_t bufLen,size_t *realNumLen);
 
 //一个宽字节转为 16 进制字符串
 template<typename WIDE_BYTE_TYPE>
