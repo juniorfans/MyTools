@@ -25,6 +25,7 @@ HWND findWindow(HWND parentWnd,const char* name)
 /************************************************************************/
 /* 当前屏幕是不是被锁定了 -- 若取得顶层窗口失败则认为锁定屏幕了
 /************************************************************************/
+/*
 BOOL hasScreenLocked()
 {
 	HWND hWnd = GetForegroundWindow();
@@ -34,7 +35,23 @@ BOOL hasScreenLocked()
 	}
 	else return FALSE;
 }
+*/
 
+BOOL hasScreenLocked()
+{     	// note: we can't call OpenInputDesktop directly because it's not     
+	// available on win 9x     
+	BOOL bLocked = FALSE;
+	HDESK hDesk = ::OpenDesktopW(L"Default", 0, FALSE, DESKTOP_SWITCHDESKTOP);     
+
+	if (hDesk)     
+	{     
+		bLocked = !::SwitchDesktop(hDesk);     
+		// cleanup     
+		::CloseDesktop(hDesk);     
+	}     
+		   
+	return bLocked;    
+} 
 
 
 void sendKeysWithoutSetForeground(HWND wnd, BYTE * vks, int klen)
@@ -93,5 +110,4 @@ void sendToForegroundWnd(BYTE* vks, int klen)
 	//	LOG_INFO(buffer);
 
 	sendKeysWithoutSetForeground(hWnd, vks, klen);
-	LOG_INFO("finished.");
 }

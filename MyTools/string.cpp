@@ -2,7 +2,6 @@
 #include "FileEncoding.h"
 #include <windows.h>
 
-
 void upToLowCase(char *buf,size_t bufLen)
 {
 	char ch;

@@ -1,7 +1,23 @@
 #ifndef TEST_PROCESS_THREAD
 #define TEST_PROCESS_THREAD
 #include <windows.h>
+#include <set>
+using std::set;
 
+class ProcessInfo 
+{
+public:
+	ProcessInfo(DWORD pid, DWORD moduleId, DWORD parentPId, TCHAR* path);
+	DWORD _pid;
+	DWORD _moduleId;
+	DWORD _parentPId;
+	TCHAR _path [MAX_PATH];
+
+	bool operator < (const ProcessInfo &pi) const
+	{
+		return this->_pid < pi._pid;
+	}
+};
 
 //获得当前系统内存占用
 SIZE_T getCurrentMemoryUse(SIZE_T *peakMemory);
@@ -27,5 +43,14 @@ int KillProcessByName(const TCHAR *lpszProcessName) ;
 
 //根据名字查找进程
 BOOL findProcess(const TCHAR *lpszProcessName) ;
+
+//根据进程名获得进程 id
+bool getProcessInfoByName(const TCHAR *lpszProcessName, set<DWORD>& infos );
+
+bool getProcessInfoByNameEx(const TCHAR *lpszProcessName, set<ProcessInfo>& infos);
+
+bool startProcess(const TCHAR *exeFile, const TCHAR *cmdLine, const TCHAR *workDirectory);
+
+bool startProcessSilent(const TCHAR *exeFile, const TCHAR *cmdLine, const TCHAR *workDirectory);
 
 #endif

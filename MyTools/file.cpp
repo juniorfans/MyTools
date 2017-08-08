@@ -205,10 +205,10 @@ bool fullPath_alt(const string &thePath,string &full)
 //由相对路径获得绝对路径. 适应 windows
 bool fullPath(const string &thePath,string &full)
 {
-	char theDir[MAX_PATH];
+	char theDir[MAX_PATH] = {0};
 	char theFull[MAX_PATH] = {0};
 	char *namePos = NULL;
-	memcpy_s(theDir,MAX_PATH,thePath.c_str(),MAX_PATH);
+	memcpy_s(theDir,MAX_PATH,thePath.c_str(),thePath.length());
 	if(::GetFullPathNameA(theDir,MAX_PATH,theFull,&namePos) == 0)
 	{
 		int errorCode = GetLastError();

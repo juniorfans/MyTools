@@ -5,6 +5,16 @@
 #pragma comment(lib,"Psapi.lib")
 #include <process.h>
 #include <tlhelp32.h>
+#include <tchar.h>
+
+ProcessInfo::ProcessInfo(DWORD pid, DWORD moduleId, DWORD parentPId, TCHAR* path)
+:_pid(pid),_parentPId(parentPId),_moduleId(moduleId)
+{
+	size_t pathLen = tstrLen(path);
+	memcpy_s(_path,MAX_PATH*sizeof(TCHAR),path,pathLen*sizeof(TCHAR));
+	_path[pathLen] = 0;
+
+}
 
 //获得当前系统内存占用
 SIZE_T getCurrentMemoryUse(SIZE_T *peakMemory)
@@ -104,7 +114,8 @@ int KillProcessByName(const TCHAR *lpszProcessName)
 		if (strEqual(processInfo.szExeFile, lpszProcessName)) {  
 			retval = 1;
 			// Terminate the process.  
-			pid = processInfo.th32ProcessID;  
+			pid = processInfo.th32ProcessID;
+			
 			HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, TRUE, pid);  
 
 			if (TerminateProcess(hProcess, 0) != TRUE) { // Failed to terminate it.  
@@ -123,6 +134,91 @@ int KillProcessByName(const TCHAR *lpszProcessName)
 	EnableDebugPrevilige(FALSE);
 
 	return retval;  
+}
+
+
+bool getProcessInfoByName(const TCHAR *lpszProcessName, set<DWORD>& pids )
+{
+	EnableDebugPrevilige(TRUE);
+	unsigned int   pid = -1;  
+	int    retval = 2;  
+
+	if (lpszProcessName == NULL)  
+		return false;
+
+	DWORD dwRet = 0;  
+	HANDLE hSnapshot = CreateToolhelp32Snapshot( TH32CS_SNAPPROCESS,0 );  
+	PROCESSENTRY32 processInfo;  
+	processInfo.dwSize = sizeof( PROCESSENTRY32 );  
+	int flag = Process32First( hSnapshot, &processInfo );  
+
+	// Find the process with name as same as lpszProcessName  
+	while (flag != 0)  
+	{  
+		if (strEqual(processInfo.szExeFile, lpszProcessName) ) {  
+			pids.insert(processInfo.th32ProcessID);
+		}  
+
+		flag = Process32Next(hSnapshot, &processInfo);   
+	} // while (flag != 0)  
+
+	CloseHandle(hSnapshot);  
+	EnableDebugPrevilige(FALSE);
+
+	return 0 != pids.size();  
+}
+
+
+bool getProcessInfoByNameEx(const TCHAR *lpszProcessName, set<ProcessInfo>& infos)
+{
+	EnableDebugPrevilige(TRUE);
+	unsigned int   pid = -1;  
+	int    retval = 2;  
+
+	if (lpszProcessName == NULL)
+		return false;
+
+	DWORD dwRet = 0;  
+	HANDLE hSnapshot = CreateToolhelp32Snapshot( TH32CS_SNAPPROCESS,0 );  
+	PROCESSENTRY32 processInfo;  
+	processInfo.dwSize = sizeof( PROCESSENTRY32 );  
+	int flag = Process32First( hSnapshot, &processInfo );  
+	HMODULE hMods[1024];
+	DWORD cbNeeded;
+	HANDLE hProcess;
+	TCHAR szModName[MAX_PATH];
+	// Find the process with name as same as lpszProcessName  
+	while (flag != 0)  
+	{  
+		if (strEqual(processInfo.szExeFile, lpszProcessName) ) 
+		{
+			hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
+				PROCESS_VM_READ,
+				FALSE, processInfo.th32ProcessID);
+			
+			if(NULL == hProcess)
+				continue;
+			
+			if( EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded))
+			{
+				for (int i = 0; i < (cbNeeded / sizeof(HMODULE)); i++ )
+				{
+					if(GetModuleFileNameEx(hProcess,hMods[i], szModName,MAX_PATH))
+					{
+						infos.insert(ProcessInfo(processInfo.th32ProcessID,
+							processInfo.th32ModuleID, processInfo.th32ParentProcessID,szModName));
+					}
+				}
+			}
+		}  
+
+		flag = Process32Next(hSnapshot, &processInfo);   
+	} // while (flag != 0)  
+
+	CloseHandle(hSnapshot);  
+	EnableDebugPrevilige(FALSE);
+
+	return 0 != infos.size();  
 }
 
 //根据名字查找进程
@@ -155,4 +251,96 @@ BOOL findProcess(const TCHAR *lpszProcessName)
 	EnableDebugPrevilige(FALSE);
 
 	return FALSE;  
+}
+
+/************************************************************************/
+/* 
+	暂时还有问题
+*/
+/************************************************************************/
+bool startProcessSilent(const TCHAR *exeFile, const TCHAR *cmdLine, const TCHAR *workDirectory)
+{
+	TCHAR cmd[MAX_PATH] = {0};
+	size_t cmdLen = NULL == cmdLine ? 0 : tstrLen(cmdLine)*sizeof(TCHAR);
+	if(0 != cmdLen)
+	{
+		memcpy_s(cmd,MAX_PATH*sizeof(TCHAR),cmdLine,cmdLen);
+		cmd[cmdLen] = 0;
+	}
+
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+	ZeroMemory( &pi, sizeof(pi) );
+	ZeroMemory( &si, sizeof(si) );
+
+	si.cb = sizeof(STARTUPINFO);
+	si.lpReserved = NULL;
+	si.lpDesktop = NULL;
+	si.lpTitle = NULL;
+	si.dwFlags = STARTF_USESHOWWINDOW;
+	si.wShowWindow = SW_HIDE;
+	si.cbReserved2 = NULL;
+	si.lpReserved2 = NULL;
+
+	TCHAR *desktopName = _T("kmAnotherDesktop");
+	//HDESK hdesk = ::OpenDesktop(desktopName,0,false,GENERIC_ALL);
+	HDESK  hdesk = ::CreateDesktopW(desktopName,NULL,NULL,0,GENERIC_ALL,NULL);
+	if(NULL != hdesk)
+	{
+		int errorCode = GetLastError();
+		si.lpDesktop = desktopName;
+	}
+
+	//	si.lpDesktop = L"new desktop";
+
+	if(CreateProcess(exeFile, cmdLen? cmd : NULL , NULL, NULL, FALSE, 0, NULL, workDirectory, &si, &pi))
+
+	{
+		CloseHandle( pi.hProcess );
+		CloseHandle( pi.hThread );
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool startProcess(const TCHAR *exeFile, const TCHAR *cmdLine, const TCHAR *workDirectory)
+{
+	TCHAR cmd[MAX_PATH] = {0};
+	size_t cmdLen = NULL == cmdLine ? 0 : tstrLen(cmdLine)*sizeof(TCHAR);
+	if(0 != cmdLen)
+	{
+		memcpy_s(cmd,MAX_PATH*sizeof(TCHAR),cmdLine,cmdLen);
+		cmd[cmdLen] = 0;
+	}
+	
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+	ZeroMemory( &pi, sizeof(pi) );
+	ZeroMemory( &si, sizeof(si) );
+
+	si.cb = sizeof(STARTUPINFO);
+	si.lpReserved = NULL;
+	si.lpDesktop = NULL;
+	si.lpTitle = NULL;
+	si.dwFlags = STARTF_USESHOWWINDOW;
+	si.wShowWindow = SW_HIDE;
+	si.cbReserved2 = NULL;
+	si.lpReserved2 = NULL;
+
+	//	si.lpDesktop = L"new desktop";
+
+	if(CreateProcess(exeFile, cmdLen? cmd : NULL , NULL, NULL, FALSE, 0, NULL, workDirectory, &si, &pi))
+
+	{
+		CloseHandle( pi.hProcess );
+		CloseHandle( pi.hThread );
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }

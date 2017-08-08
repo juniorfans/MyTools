@@ -10,5 +10,6 @@
 #include "math.h"
 #include "wnd.h"
 #include "timer.h"
+#include "FileEncoding.h"
 
 #endif

@@ -1,102 +1,122 @@
-#include <memory>
-#include "FileEncoding.h"
-#include "./thirdpart/uchardet/uchardet.h"
 #include <windows.h>
-#include <string>
-using std::string;
+#include "FileEncoding.h"
 
-FileEncoding::FileEncoding(void)
+
+//由 utf8 编码的多字节转为宽字节. char -> Unicode
+wchar_t* utf8MultCharSetToWide(const char * buf,size_t bufLen,size_t *realNumLen)
 {
-	memset(charSet,0,sizeof(char) * MAX_CHARSET_NAME);
-}
-
-FileEncoding::~FileEncoding(void)
-{
-}
-
-
-const char * FileEncoding:: getCharSet(const char *buf,size_t bufLen)
-{
-	const char *retCharSet = NULL;
-	uchardet_t ud = uchardet_new();
-	if(0 == uchardet_handle_data(ud,buf,bufLen))
-	{
-		uchardet_data_end(ud);
-		retCharSet = uchardet_get_charset(ud);
-		memcpy_s(charSet,16,retCharSet,sizeof(char) * 16);
-	}
-	uchardet_delete(ud);
-	return charSet;
-}
-
-int FileEncoding:: getCharSetPageCode(const char *buf,size_t bufLen)
-{
-	const char *charSet = getCharSet(buf,bufLen);
-	printf("...[%s]...",charSet);
-	if(strEqual(charSet,"UTF-8"))
-	{
-		return 65001;
-	}	
-	if(strEqual(charSet,"UTF-16"))
-	{
-		return 1200;
-	}
-	else if (strEqual(charSet,"Big5"))
-	{
-		return 950;
-	}
-	else if(strEqual(charSet,"GBK"))
-	{
-		return 936;
-	}
-	else if(strEqual(charSet,"EUC-JP"))
-	{
-		return 932;
-	}
-	else if(strEqual(charSet,"EUC-KR"))
-	{
-		return 949;
-	}
-	else if(strEqual(charSet,"gb18030"))
-	{
-		return 54936;
-	}
-	else if(strEqual(charSet,"windows-1252"))
-	{
-		return 1252;
-	}
-	else if(strEqual(charSet,"Shift_JIS"))
-	{
-		return 932;
-	}
-	return 0;//ansi CP_ACP
-}
-
-
-
-//多字节转为宽字节. char -> Unicode
-wchar_t* multCharSetToWide(const char * buf,size_t bufLen,size_t *realNumLen)
-{
-
-	setlocale(LC_ALL,"chs");
-
-	FileEncoding fed;	//CP_UTF8
-	size_t testLen = bufLen < 4096 ? bufLen : 4096;
-	int CP_PAGE = fed.getCharSetPageCode(buf,testLen);
-	//TODO 这里还有 BUG，有时第一次调用 MultiByteToWideChar 返回 0 字节
-	int theUTF8 = CP_UTF8;
 	//多字节字符串转化为宽字符串，第一个参数表示源字符串的代码页
-	size_t nMBLen = MultiByteToWideChar(CP_PAGE,0,buf,bufLen,NULL,NULL);
+	size_t nMBLen = MultiByteToWideChar(CP_UTF8,0,buf,bufLen,NULL,NULL);
 	if(0 == nMBLen)
 	{
 		int ne = GetLastError();
-		printf("MultiByteToWideChar failed. source file page code is : %d\r\n",CP_PAGE);
+		return NULL;
 	}
 	wchar_t* szWcsBuffer = (wchar_t*)malloc(sizeof(wchar_t) * (nMBLen + 1));
 
-	//	ZeroMemory(szWcsBuffer, sizeof(wchar_t)*(1+nMBLen));
 	memset(szWcsBuffer,0,sizeof(wchar_t)*(nMBLen+1));
-	MultiByteToWideChar(CP_PAGE,0,buf,bufLen, szWcsBuffer, nMBLen);
+	MultiByteToWideChar(CP_UTF8,0,buf,bufLen, szWcsBuffer, nMBLen);
 	*realNumLen = nMBLen;
 	return szWcsBuffer;
+}
+
+wchar_t* defaultMultCharSetToWide(const char * buf,size_t bufLen,size_t *realNumLen)
+{
+	//setlocale(LC_ALL,"chs"); //确保本机上的语言设置是 chs. 中国
+	size_t nMBLen = MultiByteToWideChar(CP_ACP,0,buf,bufLen,NULL,NULL);
+	if(0 == nMBLen)
+	{
+		int ne = GetLastError();
+		return NULL;
+	}
+	wchar_t* szWcsBuffer = (wchar_t*)malloc(sizeof(wchar_t) * (nMBLen + 1));
+
+	memset(szWcsBuffer,0,sizeof(wchar_t)*(nMBLen+1));
+	MultiByteToWideChar(CP_ACP,0,buf,bufLen, szWcsBuffer, nMBLen);
+	*realNumLen = nMBLen;
+	return szWcsBuffer;
+}
+
+//宽字节转为多字节. Unicode -> char
+char* wideCharSetToUtf8Mult(const wchar_t * buf,size_t bufLen,size_t *realNumLen)
+{
+	//setlocale(LC_ALL,"chs");
+	//多字节字符串转化为宽字符串，第一个参数表示目标字符串的代码页
+	size_t nMBLen = WideCharToMultiByte(CP_UTF8,0,buf,bufLen,NULL,0,NULL,NULL);
+	if(0 == nMBLen)
+	{
+		int ne = GetLastError();
+		return NULL;
+	}
+	char* charBuffer = (char*)malloc(sizeof(char) * (nMBLen + 1));
+
+	memset(charBuffer,0,sizeof(char)*(nMBLen+1));
+	WideCharToMultiByte(CP_UTF8,0,buf,bufLen, charBuffer, nMBLen,NULL,NULL);
+	*realNumLen = nMBLen;
+	return charBuffer;
+}
+
+//宽字节转为多字节. Unicode -> char
+char* wideCharSetToDefaultMult(const wchar_t * buf,size_t bufLen,size_t *realNumLen)
+{
+	//setlocale(LC_ALL,"chs");
+	//多字节字符串转化为宽字符串，第一个参数表示目标字符串的代码页
+	size_t nMBLen = WideCharToMultiByte(CP_ACP,0,buf,bufLen,NULL,0,NULL,NULL);
+	if(0 == nMBLen)
+	{
+		int ne = GetLastError();
+		return NULL;
+	}
+	char* charBuffer = (char*)malloc(sizeof(char) * (nMBLen + 1));
+
+	memset(charBuffer,0,sizeof(char)*(nMBLen+1));
+	WideCharToMultiByte(CP_ACP,0,buf,bufLen, charBuffer, nMBLen,NULL,NULL);
+	*realNumLen = nMBLen;
+	return charBuffer;
+}
+
+//多字节转为宽字节. char -> Unicode
+wchar_t* multCharSetToWide(const char * buf,size_t bufLen,DWORD codeOfBuf,size_t *realNumLen)
+{	
+	//多字节字符串转化为宽字符串，第一个参数表示源字符串的代码页
+	size_t nMBLen = MultiByteToWideChar(codeOfBuf,0,buf,bufLen,NULL,NULL);
+	if(0 == nMBLen)
+	{
+		int ne = GetLastError();
+		return NULL;
+	}
+	wchar_t* szWcsBuffer = (wchar_t*)malloc(sizeof(wchar_t) * (nMBLen + 1));
+
+	memset(szWcsBuffer,0,sizeof(wchar_t)*(nMBLen+1));
+	MultiByteToWideChar(codeOfBuf,0,buf,bufLen, szWcsBuffer, nMBLen);
+	*realNumLen = nMBLen;
+	return szWcsBuffer;
+}
+
+//宽字节转为多字节. Unicode -> char
+char* wideCharSetToMult(const wchar_t * buf,size_t bufLen, DWORD codeOfTarget,size_t *realNumLen)
+{
+	//多字节字符串转化为宽字符串，第一个参数表示目标字符串的代码页
+	size_t nMBLen = WideCharToMultiByte(codeOfTarget,0,buf,bufLen,NULL,0,NULL,NULL);
+	if(0 == nMBLen)
+	{
+		int ne = GetLastError();
+		return NULL;
+	}
+	char* charBuffer = (char*)malloc(sizeof(char) * (nMBLen + 1));
+
+	memset(charBuffer,0,sizeof(char)*(nMBLen+1));
+	WideCharToMultiByte(codeOfTarget,0,buf,bufLen, charBuffer, nMBLen,NULL,NULL);
+	*realNumLen = nMBLen;
+	return charBuffer;
+}
+
+
+
+DWORD getSystemCodePage()
+{
+	WCHAR pwCodePage[16] = {0};  
+	GetLocaleInfo(LOCALE_SYSTEM_DEFAULT, LOCALE_IDEFAULTCODEPAGE, pwCodePage, sizeof(pwCodePage));  
+
+	return  _wtoi(pwCodePage);
 }
