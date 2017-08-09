@@ -201,7 +201,7 @@ bool getProcessInfoByNameEx(const TCHAR *lpszProcessName, set<ProcessInfo>& info
 			
 			if( EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded))
 			{
-				for (int i = 0; i < (cbNeeded / sizeof(HMODULE)); i++ )
+				for (size_t i = 0; i < (cbNeeded / sizeof(HMODULE)); i++ )
 				{
 					if(GetModuleFileNameEx(hProcess,hMods[i], szModName,MAX_PATH))
 					{
